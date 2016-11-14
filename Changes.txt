@@ -1,0 +1,47 @@
+﻿3 - 11 - 2016
+
+
+1. Cannot register more than ones with a Service Station Name or Contact Number
+The service checks whether the contact number exist, if yes, it should take them to the login or show alert on login 
+AS of now, i am giving a credit of 50 SMS to new registrants. 
+
+2. getVerified will verify the contact and passcode and return the details as below. 
+/getVerified?contactnumber=8606889900&Passcode=8662
+if success it will return on Success 
+{
+  "result": [
+    {
+      "userid": "549d600d-e45b-11e5-b657-fcaa1492285f",
+      "servicestationid": "549d6070-e45b-11e5-b657-fcaa1492285f",
+      "contactperson": "joshy"
+    }
+  ]
+}
+and on failure 
+{
+  "result": []
+}
+
+
+
+3. Removed the verification SMS from the registration page. 
+
+4. Added stored procedure checklogin(contact, passcode) 
+
+24 march - major changes
+--------------------------------------------------------------------------------------------------
+
+add 2 fields in customer_vehicle table. 
+
+added table for vehcile_advanceddetails
+
+made changes in createCustomer sp 
+
+added new sp createadvancedfeatures
+
+add new sp getJobDetails
+
+changed searchVehicleswithStatus with new fields in the end. 
+add new sp for listCustomers
+
+added new page Customers.js

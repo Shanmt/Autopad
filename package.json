@@ -1,0 +1,17 @@
+{
+  "name": "restful",
+  "version": "0.0.0",
+  "description": "restful",
+  "main": "test.js",
+  "dependencies": {
+    "body-parser": "latest",
+    "dateformat": "^1.0.12",
+    "express": "latest",
+    "mysql": "latest",
+    "request": "^2.69.0"
+  },
+  "author": {
+    "name": "john",
+    "email": ""
+  }
+}

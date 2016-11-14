@@ -1,0 +1,150 @@
+﻿ALTER TABLE `clubauto_cloud`.`customer_vehicle` 
+ADD COLUMN `engineno` VARCHAR(45) NULL DEFAULT NULL AFTER `ssid`,
+ADD COLUMN `chasisno` VARCHAR(45) NULL DEFAULT NULL AFTER `engineno`;
+
+
+
+DELIMITER $$
+
+CREATE TABLE `clubauto_cloud`.`vehicle_advanceddetails` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `customerjobid` VARCHAR(45) NULL,
+  `FuelLevel` INT NULL COMMENT '0 - empty\n1- qtr \n2 half \n3 3/4 \n4 full \n',
+  `mechanicincharge` VARCHAR(45) NULL,
+  `mechanicname` VARCHAR(45) NULL,
+  `odometerreading` DECIMAL NULL,
+  `milege` DECIMAL NULL,
+  `servicebooklet` BIT NULL,
+  `sparewheel` BIT NULL,
+  `jackandhandle` BIT NULL,
+  `toolkit` BIT NULL,
+  `mats` BIT NULL,
+  `mudflaps` BIT NULL,
+  `stereo` BIT NULL,
+  `clock` BIT NULL,
+  `wheelcaps` BIT NULL,
+  `crack` VARCHAR(45) NULL,
+  `dent` VARCHAR(45) NULL,
+  `scratch` VARCHAR(45) NULL,
+  `createddate` DATETIME NULL,
+  PRIMARY KEY (`id`));
+
+
+  DROP procedure IF EXISTS `createCustomer`;
+
+DELIMITER $$
+USE `clubauto_cloud`$$
+CREATE DEFINER=`root`@`localhost` PROCEDURE `createCustomer`(_userid varchar(45), _ssid varchar(45 ),regid varchar(45), mobile varchar(45), cname varchar(45), 
+make varchar(45), model varchar(45), photo varchar(45), status varchar(45), estimatedtime varchar(45), estimatedamount decimal(18,12),jobid varchar(45),_cheifcomplaint varchar(1000), 
+_engineno varchar(45), _chasisno varchar(45)
+)
+BEGIN
+	 Declare count int;
+     dECLARE _Customerid varchar(45);
+     declare _vehicleid varchar(45);
+     declare _customerjobid varchar(45);
+     declare _estimatedtime datetime;
+    set count = (SELECT COUNT(*) FROM servicestationUsers where userid=_userid and servicestationid = _ssid);
+    if(count > 0)     then 
+		/*this is the place where you need to add the vehcile*/
+        /*search if the customer exists, if he exists get the customer id else insert customer get customerid */
+        Set _Customerid = (Select Customer.Customerid from clubauto.Customer where contact =mobile and ssid =_ssid LIMIT 1);
+        
+
+        if(isnull(_Customerid)=1)
+        then
+			set _Customerid = (SELECT UUID());
+			/* insert customer data and  get the customerid*/
+            INSERT INTO CUSTOMER (CustomerId,customername, contact, createdate,ssid) values (_Customerid, cname,mobile, now(),_ssid)  ;
+        end if;
+            
+        /*find if the customer_vehicle already exists if yes get the vehicle id, else insert the vehicle details get vehicleid */    
+        Set _vehicleid = (Select vehicleid from customer_vehicle where registrationid =regid LIMIT 1);
+        
+		if(isnull(_vehicleid)=1)
+        then
+			set _vehicleid = (SELECT UUID());
+            
+            INSERT INTO customer_vehicle(vehicleid,customer_vehicle.type,customerid, registrationid,photo,make,model,customer_vehicle.year,isActive,createddate,ssid,engineno,chasisno)
+            values (_vehicleid,'',_Customerid,regid,'',make,model,'',1,now(),_ssid,_engineno,_chasisno);
+        end if;
+        
+        
+         /* if jobid(customerjobdetails) is passed then edit estimatedtime and estimatedamount or else  insert the customer job details and get the customerjobid */    
+		 /* return 'success',customerid,vehicleid, jobid */
+       
+         set count = (Select Count(*) from customerjob where customerjobid = jobid);
+          
+          set  _estimatedtime = str_to_date(estimatedtime,'%d-%m-%Y %h:%i %p' );
+         -- set  _estimatedtime = str_to_date(estimatedtime,'%Y-%m-%d %h:%i %p' );
+         
+         if(count>0)
+         then 
+			/* job needs to be edited*/
+            
+           Update customerjob set estimatedendtime = _estimatedtime, estimateamount=estimatedamount,cheifcomplaint = _cheifcomplaint  where customerjobid = jobid;
+           
+         else
+			set _customerjobid = (SELECT UUID());
+          
+            insert into customerjob (customerjobid,customerid, vehicleid,status,estimateendtime,estimateamount,actualcompletetime,actualamount,createdate,ssid,createdUser,cheifcomplaint) 
+            values (_customerjobid,_Customerid,_vehicleid,'UNATTENDED',_estimatedtime,estimatedamount,null,0,now(),_ssid,_userid,_cheifcomplaint);
+         
+         end if;
+         
+         select 'success',_Customerid,_vehicleid,_customerjobid;
+         
+    else
+		select 'failure' as status;
+        
+    end if;
+END$$
+
+DELIMITER ;
+
+
+
+
+
+DELIMITER $$
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `createAdvancedFeatures`(jobid varchar(45),
+_fuel int,mecid varchar(45), mecname varchar(45), odo decimal, _milege decimal, 
+servicebook bit, _sparewheel bit, _jack bit, _toolkit bit, _mats  bit, _mudflaps bit, _stereo bit, _clock bit, _wheelcaps bit,
+_cracks varchar(45), _dent varchar(45), _scratch varchar(45)
+)
+BEGIN
+	delete from vehicle_advanceddetails where customerjobid = jobid; 
+    
+    INSERT INTO `vehicle_advanceddetails` (`customerjobid`,`FuelLevel`,`mechanicincharge`,`mechanicname`,`odometerreading`,`milege`,`servicebooklet`,`sparewheel`,`jackandhandle`,
+`toolkit`,`mats`,`mudflaps`,`stereo`,`clock`,`wheelcaps`,`crack`,`dent`,`scratch`,`createddate`)
+VALUES
+(jobid, _fuel, _mecid, mecname, odo, _milege, servicebook, _sparewheel, _jack, 
+_toolkit, _mats, _mudflaps,_stereo, _clock,_wheelcaps,_crack,_dent,_scratch, now());
+
+END$$
+
+DELIMITER ;
+;
+
+
+
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `jobDetails`(userid varchar(45), ssid varchar(45), jobid varchar(45))
+BEGIN
+ Declare count int;
+	set count = (SELECT COUNT(*) FROM servicestationUsers where userid=_userid and servicestationid = _ssid);
+    if(count > 0)     then 
+		SELECT        customerjob.customerid, customerjob.vehicleid, customerjob.status, customerjob.estimateendtime, customerjob.estimateamount, customerjob.actualcompletetime, 
+                         customerjob.actualamount, customerjob.createdate, customerjob.ssid, customerjob.cheifcomplaint, customerjob.createduser, customer_vehicle.type, 
+                         customer_vehicle.registrationid, customer_vehicle.make, customer_vehicle.model, customer_vehicle.year, customer_vehicle.isactive, customer_vehicle.engineno, 
+                         customer_vehicle.chasisno
+FROM            customerjob LEFT OUTER JOIN
+                         customer_vehicle ON customerjob.vehicleid = customer_vehicle.vehicleid
+WHERE        (customerjob.customerjobid = jobid);
+
+SELECT * FROM customerjobdetails where customerjobid =jobid;
+SELECT * FROM  vehicle_advanceddetails where customerjobid =jobid;
+    end if;
+END
+

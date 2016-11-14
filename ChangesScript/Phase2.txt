@@ -1,0 +1,225 @@
+﻿Feature 1
+use specific senderid for some customers  
+
+Things to do
+
+Database : add field in servicestationdetails 
+Web : Show this in the profile 
+Mobile : show this in the profile (make profile look better) 
+Service : No change, this will be added to the DB Directly
+//////
+
+
+ALTER TABLE `clubauto_cloud2`.`servicestationdetails` 
+ADD COLUMN `SenderID` VARCHAR(45) NULL DEFAULT 'MOTORS' AFTER `createddate`;
+
+/////////////
+Changing the DB for getting SS Details 
+
+USE `clubauto_cloud2`;
+DROP procedure IF EXISTS `serviceCentreDetails`;
+
+DELIMITER $$
+USE `clubauto_cloud2`$$
+CREATE DEFINER=`root`@`localhost` PROCEDURE `serviceCentreDetails`(uid  varchar(45), ssid varchar(45))
+BEGIN
+
+Declare count int;
+    set count = (SELECT COUNT(*) FROM servicestationUsers where userid=uid and servicestationid = ssid);
+    if(count > 0)     then  
+
+		select 'success' as status;
+		
+		SELECT servicestation,phone, contactnumber,contactperson,servicestationType,createddate,Date_Format(createddate,'%b %d %Y') as joineddate, creditSMS,SMSused, (creditSMS-SMSused) as PendingSMS, SenderID
+ FROM
+ servicestationdetails LEFT OUTER JOIN
+  smsmain ON
+ servicestationdetails.servicestationid = smsmain.servicestationid
+  where servicestationdetails.servicestationid=ssid;
+  
+	 else
+		select 'failure in authentication' as status;
+        
+    end if;
+END$$
+
+DELIMITER ;
+
+/////////
+
+USE `clubauto_cloud2`;
+DROP procedure IF EXISTS `getCustomerDetailsfromJob`;
+
+DELIMITER $$
+USE `clubauto_cloud2`$$
+CREATE DEFINER=`root`@`localhost` PROCEDURE `getCustomerDetailsfromJob`(jobid varchar(45),_ssid varchar(45))
+BEGIN
+SELECT        customerjob.customerjobid, customerjob.customerid, customerjob.status, customerjob.actualamount, customer.customername, customer.contact, 
+                         customer_vehicle.registrationid, servicestationdetails.servicestation, servicestationdetails.contactnumber, servicestationdetails.SenderID
+FROM            customer_vehicle RIGHT OUTER JOIN
+                         customerjob ON customer_vehicle.vehicleid = customerjob.vehicleid LEFT OUTER JOIN
+                         customer LEFT OUTER JOIN
+                         servicestationdetails ON customer.ssid = servicestationdetails.servicestationid ON customerjob.customerid = customer.customerid
+
+where customerjob.customerjobid =jobid
+and customerjob.ssid = _ssid
+
+;
+END$$
+
+DELIMITER ;
+
+
+///////
+Task : Reminder dates 
+
+Added new table customer_reminder 
+and made change in changeVehicleStatus nad added new changeVehicleStatusNew
+
+
+//MADE Changes by adding Inform the Estimated date later. 
+//Changes done in WEb by Passing null 
+// Changes done in Node JS on Insert and updated
+
+//Spares, Estimates & Discount 
+Made changes in the DB 
+
+ALTER TABLE `clubauto_cloud2`.`customerjob` 
+ADD COLUMN `spares` VARCHAR(2000) NULL AFTER `cheifcomplaint`,
+ADD COLUMN `estimates` VARCHAR(2000) NULL AFTER `spares`,
+ADD COLUMN `discount` DECIMAL NULL AFTER `estimates`;
+CHANGE COLUMN `discount` `discount` DECIMAL(10,0) NULL DEFAULT 0 ;
+
+USE `clubauto_cloud2`;
+DROP procedure IF EXISTS `setJobCardDetails`;
+
+DELIMITER $$
+USE `clubauto_cloud2`$$
+CREATE DEFINER=`root`@`localhost` PROCEDURE `setJobCardDetails`(_userid varchar(45), _ssid varchar(45), jobid varchar(45), _spares varchar(45),_estimates varchar(45),_discount decimal)
+BEGIN
+	Declare count int;
+    set count = (SELECT COUNT(*) FROM servicestationUsers where userid=_userid and servicestationid = _ssid);
+    if(count > 0)     then 
+		if(_spares<>'') then
+			update customerjob set spares = _spares where 
+            customerjobid = jobid and ssid = _ssid;
+        end if;
+        
+        if(_estimates<>'') then
+			update customerjob set estimates = _estimates where 
+            customerjobid = jobid and ssid = _ssid;
+        end if;
+        
+        if(_discount<>0) then
+			update customerjob set discount = _discount where 
+            customerjobid = jobid and ssid = _ssid;
+        end if;
+        
+		select 'SUCCESS' as status;
+    else
+		select 'FAILED' as status;
+        
+        
+    end if;
+END$$
+
+DELIMITER ;
+
+
+// Add Function save spare lines into the DB as a service
+//added function in Customers.JS handle_setJobCardDetails
+
+
+
+//Get Jobcard details and changes 
+
+//DB SP Change
+USE `clubauto_cloud2`;
+DROP procedure IF EXISTS `getJobCardDetails`;
+
+DELIMITER $$
+USE `clubauto_cloud2`$$
+CREATE DEFINER=`root`@`localhost` PROCEDURE `getJobCardDetails` (_userid varchar(45), _ssid varchar(45), jobid varchar(45) )
+BEGIN
+Declare count int;
+    set count = (SELECT COUNT(*) FROM servicestationUsers where userid=_userid and servicestationid = _ssid);
+    if(count > 0)     then 
+		select 'SUCCESS' AS Status;	
+		SELECT spares,estimates,discount FROM clubauto_cloud2.customerjob where 
+        customerjobid=jobid and ssid =_ssid;
+	else
+		Select 'FAILURE' AS Status;
+        
+    end if;
+END
+$$
+
+DELIMITER ;
+
+
+//Create new table for estimates 
+CREATE TABLE `clubauto_cloud2`.`estimates` (
+  `estimateid` INT NOT NULL,
+  `customerjobid` VARCHAR(45) NULL,
+  `estimatenumber` VARCHAR(45) NULL,
+  `estimateurl` VARCHAR(45) NULL,
+  PRIMARY KEY (`estimateid`))
+ENGINE = InnoDB
+AUTO_INCREMENT = 10001;
+
+ALTER TABLE `clubauto_cloud2`.`estimates` 
+CHANGE COLUMN `estimateid` `estimateid` INT(11) NOT NULL AUTO_INCREMENT ;
+
+ALTER TABLE `clubauto_cloud2`.`estimates` 
+ADD INDEX `customerjobid` (`customerjobid` ASC);
+
+ALTER TABLE `clubauto_cloud2`.`estimates` 
+CHANGE COLUMN `ssid` `ssid` VARCHAR(45) NULL DEFAULT NULL ;
+
+
+
+
+//CREATE setEStimateValues 
+USE `clubauto_cloud2`;
+DROP procedure IF EXISTS `setEstimateValues`;
+
+DELIMITER $$
+USE `clubauto_cloud2`$$
+CREATE DEFINER=`root`@`localhost` PROCEDURE `setEstimateValues`(_userid varchar(45), _ssid varchar(45), jobid varchar(45) )
+BEGIN
+Declare count int;
+Declare estID int; 
+Declare Inc int; 
+    set count = (SELECT COUNT(*) FROM servicestationUsers where userid=_userid and servicestationid = _ssid);
+    if(count > 0)     then 
+		set estID = (Select Max(estimateid) from estimates where customerjobid =jobid);
+        if(ISNULL(estID)=1) then 
+			select 'SUCCESS' AS Status;	
+			Insert into estimates (customerjobid, ssid) values (jobid, _ssid); 
+			set Inc= (SELECT LAST_INSERT_ID());
+			Update estimates set estimatenumber=Concat('ES-',Inc,'-2016'), estimateurl =Inc Where estimateid =Inc;
+			Select Inc,Concat('ES-',Inc,'-2016') as 'EstimateID';
+		else	
+			select 'SUCCESS' AS Status;	
+            Select estID,Concat('ES-',estID,'-2016') as 'EstimateID';
+        end if; 
+        
+        SELECT servicestationid,servicestation, contactnumber, contactperson, location, city, state, country 
+        FROM clubauto_cloud2.servicestationdetails 
+        where servicestationid=_ssid;
+        
+        select status,date_format(customerjob.createdate,'%d %b %Y') as 'createdate',if(isnull(actualcompletetime)=1,'NOT COMPLETED',date_format(customerjob.actualcompletetime,'%d %b %Y')) as 'actualcompletetime', cheifcomplaint, customer.customername, customer.contact , registrationid,make, model
+		from customerjob LEFT OUTER JOIN 
+		customer on customer.customerid = customerjob.customerid
+		LEFT OUTER JOIN
+		customer_vehicle on customer_vehicle.vehicleid= customerjob.vehicleid
+		where customerjobid =jobid; 
+
+	else
+		Select 'FAILURE' AS Status;
+        
+    end if;
+END$$
+
+DELIMITER ;
+

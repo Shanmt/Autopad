@@ -1,0 +1,376 @@
+﻿1. Gujarat Customers hsould be courtesy given to Western Auto Spares
+
+2. Odometer issue resolved. 
+	addjobs.ascx and dll change
+3. Graph issues 
+	rtpCustomervisit.ascx only changed 
+-----------------------------------------------
+
+4. Dont Send SMS on Job Complete 
+	Change the Node JS function handle_getVehicleStatusChange add a field, no SMS
+	change WEb DLL and ChangeJobStatus.aspx 
+	No DB Change 
+5. Bike image instead of car with the diamension of 128X128 png with low size.(Orange, green and blue color). If there is an other option instead of 2wheeler and 4wheeler please provide the corresponding images.
+Node JS Changed alone 
+
+
+6. Fitness, Emission and Insurance Expiry
+DB Change 
+Add Fields in Database (advanceddetails)
+
+
+ALTER TABLE `vehicle_advanceddetails` 
+ADD COLUMN `fitnessexpiry` DATE NULL DEFAULT NULL AFTER `others`,
+ADD COLUMN `emissionexpiry` DATE NULL DEFAULT NULL AFTER `fitnessexpiry`,
+ADD COLUMN `insuranceexpiry` DATE NULL DEFAULT NULL AFTER `emissionexpiry`;
+
+
+Change Stored procedure
+
+
+DROP procedure IF EXISTS `createAdvancedFeatures`;
+
+DELIMITER $$
+CREATE DEFINER=`root`@`localhost` PROCEDURE `createAdvancedFeatures`(jobid varchar(45),
+_fuel int,mecid varchar(45), mecname varchar(45), odo decimal, _milege decimal, 
+servicebook bit, _sparewheel bit, _jack bit, _toolkit bit, _mats  bit, _mudflaps bit, _stereo bit, _clock bit, _wheelcaps bit,
+_cracks varchar(45), _dent varchar(45), _scratch varchar(45), _others varchar(1000), insexp date, fitexp  date, emiexp  date
+)
+BEGIN
+SET SQL_SAFE_UPDATES = 0;
+
+	delete from vehicle_advanceddetails where customerjobid = jobid; 
+    SET SQL_SAFE_UPDATES = 1;
+
+    INSERT INTO `vehicle_advanceddetails` (`customerjobid`,`FuelLevel`,`mechanicincharge`,`mechanicname`,`odometerreading`,`milege`,`servicebooklet`,`sparewheel`,`jackandhandle`,
+`toolkit`,`mats`,`mudflaps`,`stereo`,`clock`,`wheelcaps`,`crack`,`dent`,`scratch`,`createddate`,others,fitnessexpiry,emissionexpiry,insuranceexpiry)
+VALUES
+(jobid, _fuel, mecid, mecname, odo, _milege, servicebook, _sparewheel, _jack, 
+_toolkit, _mats, _mudflaps,_stereo, _clock,_wheelcaps,_cracks,_dent,_scratch, now(),_others, fitexp,emiexp, insexp );
+
+END$$
+
+DELIMITER ;
+
+
+Change in GET Job 
+
+USE `clubauto_cloud2.1`;
+DROP procedure IF EXISTS `jobDetails`;
+
+DELIMITER $$
+USE `clubauto_cloud2.1`$$
+CREATE DEFINER=`root`@`localhost` PROCEDURE `jobDetails`(_userid varchar(45), _ssid varchar(45), jobid varchar(45))
+BEGIN
+  Declare count int;
+	set count = (SELECT COUNT(*) FROM servicestationUsers where userid=_userid and servicestationid = _ssid);
+    if(count > 0)     then 
+		SELECT        customerjob.customerid, customerjob.vehicleid, customerjob.status, customerjob.estimateendtime, customerjob.estimateamount, customerjob.actualcompletetime, 
+                         customerjob.actualamount, customerjob.createdate, customerjob.ssid, customerjob.cheifcomplaint, customerjob.createduser, customer_vehicle.type, 
+                         customer_vehicle.registrationid, customer_vehicle.make, customer_vehicle.model, customer_vehicle.year, customer_vehicle.isactive, customer_vehicle.engineno, 
+                         customer_vehicle.chasisno, customer.customername, customer.contact
+FROM            customerjob LEFT OUTER JOIN
+                         customer_vehicle ON customerjob.vehicleid = customer_vehicle.vehicleid
+                          LEFT OUTER JOIN
+                         customer ON customerjob.customerid = customer.customerid
+WHERE        (customerjob.customerjobid = jobid);
+
+SELECT * FROM customerjobdetails where customerjobid =jobid;
+
+
+SELECT `vehicle_advanceddetails`.`id`,
+    `vehicle_advanceddetails`.`customerjobid`,
+    `vehicle_advanceddetails`.`FuelLevel`,
+    `vehicle_advanceddetails`.`mechanicincharge`,
+    `vehicle_advanceddetails`.`mechanicname`,
+    `vehicle_advanceddetails`.`odometerreading`,
+    `vehicle_advanceddetails`.`milege`,
+    if(servicebooklet,'True','False') as servicebooklet,
+     if(sparewheel,'True','False')as sparewheel,
+      if(jackandhandle,'True','False')as jackandhandle,
+       if(toolkit,'True','False')as toolkit,
+        if(mats,'True','False')as mats,
+         if(mudflaps,'True','False')as mudflaps,
+          if(stereo,'True','False')as stereo,
+           if(clock,'True','False')as clock,
+            if(wheelcaps,'True','False')as wheelcaps,
+    
+    `vehicle_advanceddetails`.`crack`,
+    `vehicle_advanceddetails`.`dent`,
+    `vehicle_advanceddetails`.`scratch`,
+    `vehicle_advanceddetails`.`createddate`,
+    `vehicle_advanceddetails`.`others`,
+    Date_format(vehicle_advanceddetails.fitnessexpiry,'%d/%m/%Y') as fitnessexpiry,
+    Date_format(vehicle_advanceddetails.emissionexpiry,'%d/%m/%Y') as emissionexpiry,
+    Date_format(vehicle_advanceddetails.insuranceexpiry,'%d/%m/%Y') as insuranceexpiry
+FROM `vehicle_advanceddetails`
+where customerjobid =jobid;
+    
+    end if;
+END$$
+
+DELIMITER ;
+
+
+USE `clubauto_cloud2.1`;
+DROP procedure IF EXISTS `createAdvancedFeatures`;
+
+DELIMITER $$
+USE `clubauto_cloud2.1`$$
+CREATE DEFINER=`root`@`localhost` PROCEDURE `createAdvancedFeatures`(jobid varchar(45),
+_fuel int,mecid varchar(45), mecname varchar(45), odo decimal, _milege decimal, 
+servicebook bit, _sparewheel bit, _jack bit, _toolkit bit, _mats  bit, _mudflaps bit, _stereo bit, _clock bit, _wheelcaps bit,
+_cracks varchar(45), _dent varchar(45), _scratch varchar(45), _others varchar(1000), insexp varchar(45), fitexp  varchar(45), emiexp  varchar(45)
+)
+BEGIN
+Declare _insexp date;
+Declare _fitexp date;
+Declare _emiexp date;
+ 
+
+SET SQL_SAFE_UPDATES = 0;
+
+	if(insexp='') then 
+		set _insexp=NULL;
+	else
+		set  _insexp = str_to_date(insexp,'%d/%m/%Y' );
+    end if;
+
+    if(fitexp='') then 
+		set _fitexp=NULL;
+	else
+		set  _fitexp = str_to_date(fitexp,'%d/%m/%Y' );
+    end if;
+    
+    if(emiexp='') then 
+		set _emiexp=NULL;
+	else
+		set  _emiexp = str_to_date(emiexp,'%d/%m/%Y' );
+    end if;
+    
+
+	delete from vehicle_advanceddetails where customerjobid = jobid; 
+    SET SQL_SAFE_UPDATES = 1;
+
+    INSERT INTO `vehicle_advanceddetails` (`customerjobid`,`FuelLevel`,`mechanicincharge`,`mechanicname`,`odometerreading`,`milege`,`servicebooklet`,`sparewheel`,`jackandhandle`,
+`toolkit`,`mats`,`mudflaps`,`stereo`,`clock`,`wheelcaps`,`crack`,`dent`,`scratch`,`createddate`,others,fitnessexpiry,emissionexpiry,insuranceexpiry)
+VALUES
+(jobid, _fuel, mecid, mecname, odo, _milege, servicebook, _sparewheel, _jack, 
+_toolkit, _mats, _mudflaps,_stereo, _clock,_wheelcaps,_cracks,_dent,_scratch, now(),_others, _fitexp,_emiexp, _insexp );
+
+END$$
+
+DELIMITER ;
+
+
+
+
+
+For adding version support and service type, changed the sp checklogin 
+
+USE `clubauto_cloud2.1`;
+DROP procedure IF EXISTS `checkLogin`;
+
+DELIMITER $$
+USE `clubauto_cloud2.1`$$
+CREATE DEFINER=`root`@`localhost` PROCEDURE `checkLogin`(_contact varchar(45), _passcode varchar(10))
+BEGIN
+	SELECT        servicestationUsers.userid, servicestationUsers.servicestationid, servicestationdetails.contactperson, servicestationdetails.servicestationType, '1.0' as version, '9400288828 or 8606889900' as supportnumber
+FROM            servicestationUsers LEFT OUTER JOIN
+                         Users ON servicestationUsers.userid = Users.Userid LEFT OUTER JOIN
+                         servicestationdetails ON servicestationUsers.servicestationid = servicestationdetails.servicestationid
+
+                         Where contactnumber =_contact
+                         and verificationcode = _passcode;
+                         
+                         
+
+END$$
+
+DELIMITER ;
+
+USE `clubauto_cloud2`;
+DROP procedure IF EXISTS `getPendingSMS`;
+
+DELIMITER $$
+USE `clubauto_cloud2`$$
+CREATE DEFINER=`root`@`localhost` PROCEDURE `getPendingSMS`(userid varchar(45),ssid varchar(45))
+BEGIN
+	Declare count int;
+    set count = (SELECT COUNT(*) FROM servicestationUsers where userid=userid and servicestationid = ssid);
+    if(count > 0)     then 
+		SELECT creditSMS-SMSused as PendingSMS, '1.0' as version FROM SMSMain where servicestationid=ssid;
+    end if;
+     
+END$$
+
+DELIMITER ;
+
+
+
+USE `clubauto_cloud2`;
+DROP procedure IF EXISTS `registerServiceStation`;
+
+DELIMITER $$
+USE `clubauto_cloud2`$$
+CREATE DEFINER=`root`@`localhost` PROCEDURE `registerServiceStation`(serviceStationName varchar(100),
+	userFullName  Varchar(45),
+    userContactnumber  varchar(45),
+      photourl  varchar(45), 
+    _type varchar(45), _verificationcode varchar(10)
+    
+    ) 
+BEGIN
+    Declare _userID varchar(45);
+	Declare _serviceStationId  varchar(45);
+    Declare datevalue date;
+   /* See if the service station already exists. this can be done only by name. */
+	Declare sscount int;
+    set sscount = (SELECT Count(*) FROM servicestationdetails where contactnumber =userContactnumber);
+    if(sscount=0) then 
+        
+    set sscount = (SELECT Count(*) FROM servicestationdetails where servicestation =serviceStationName);
+    if(sscount = 0)
+    Then
+    
+    set _userId = (SELECT UUID());
+    set _serviceStationId = (SELECT UUID());
+   
+   insert into users(userid,fullname,phonenumber,createdDate,isActive,verificationcode) 
+		values
+			(_userId,userFullName,userContactNumber,curdate(),1,_verificationcode);
+	/*SELECT LAST_INSERT_ID();*/
+   
+    insert into servicestationdetails 
+		(servicestationid,servicestation,contactnumber,contactperson,photo,servicestationType,createddate,isActive)
+        values
+			(_serviceStationId,serviceStationName,userContactnumber,userFullName,photourl,_type,curdate(),1) ;
+    
+    insert into servicestationUsers (userid,servicestationid) values (_userid,_serviceStationId);
+    -- ssid varchar(45),_amount decimal(18,2),_paymentmode varchar(45),_SMSCount int)
+	
+    select 'SUCESS',_userid,_servicestationid,userFullName as 'contactperson',_type as 'servicestationType', '1.0' as version, '9400288828 or 8606889900' as supportnumber;
+    
+    call purchaseSMS(_servicestationid,0,'Registration offer-Updated',25);
+    else 
+		select 'FAILURE','SERVICE STATION ALREADY EXISTS';
+    End if;
+    
+ else
+		select 'FAILURE','CONTACT NUMBER ALREADY REGISTERED';
+    end if ; 
+    
+    
+END$$
+
+DELIMITER ;
+
+
+//ERROR while adding engineno and chasis resolved by changing SP 
+
+USE `clubauto_cloud2.1`;
+DROP procedure IF EXISTS `createCustomer`;
+
+DELIMITER $$
+USE `clubauto_cloud2.1`$$
+CREATE DEFINER=`root`@`localhost` PROCEDURE `createCustomer`(_userid varchar(45), _ssid varchar(45 ),regid varchar(45), mobile varchar(45), cname varchar(45), 
+make varchar(45), model varchar(45), photo varchar(45), status varchar(45), estimatedtime varchar(45), estimatedamount decimal(18,12),jobid varchar(45),_cheifcomplaint varchar(1000), 
+_engineno varchar(45), _chasisno varchar(45)
+)
+BEGIN
+	 Declare count int;
+     dECLARE _Customerid varchar(45);
+     declare _vehicleid varchar(45);
+     declare _customerjobid varchar(45);
+     declare _estimatedtime datetime;
+    set count = (SELECT COUNT(*) FROM servicestationUsers where userid=_userid and servicestationid = _ssid);
+    if(count > 0)     then 
+		/*this is the place where you need to add the vehcile*/
+        /*search if the customer exists, if he exists get the customer id else insert customer get customerid */
+        Set _Customerid = (Select Customer.Customerid from Customer where contact =mobile and ssid =_ssid LIMIT 1);
+        
+
+        if(isnull(_Customerid)=1)
+        then
+			set _Customerid = (SELECT UUID());
+			/* insert customer data and  get the customerid*/
+            INSERT INTO CUSTOMER (CustomerId,customername, contact, createdate,ssid) values (_Customerid, cname,mobile, now(),_ssid)  ;
+        end if;
+            
+        /*find if the customer_vehicle already exists if yes get the vehicle id, else insert the vehicle details get vehicleid */    
+       Set _vehicleid = (Select vehicleid from customer_vehicle where registrationid =regid and ssid =_ssid  LIMIT 1);
+        
+		if(isnull(_vehicleid)=1)
+        then
+			set _vehicleid = (SELECT UUID());
+            
+            INSERT INTO customer_vehicle(vehicleid,customer_vehicle.type,customerid, registrationid,photo,make,model,customer_vehicle.year,isActive,createddate,ssid,engineno,chasisno)
+            values (_vehicleid,'',_Customerid,regid,'',make,model,'',1,now(),_ssid,_engineno,_chasisno);
+		else
+			Update customer_vehicle set engineno = _engineno, chasisno =_chasisno where vehicleid = _vehicleid;
+        end if;
+        
+        
+         /* if jobid(customerjobdetails) is passed then edit estimatedtime and estimatedamount or else  insert the customer job details and get the customerjobid */    
+		 /* return 'success',customerid,vehicleid, jobid */
+       
+         set count = (Select Count(*) from customerjob where customerjobid = jobid);
+          
+          set  _estimatedtime = str_to_date(estimatedtime,'%d-%m-%Y %h:%i %p' );
+         -- set  _estimatedtime = str_to_date(estimatedtime,'%Y-%m-%d %h:%i %p' );
+         
+         if(count>0)
+         then 
+			/* job needs to be edited*/
+            SET SQL_SAFE_UPDATES = 0;
+            delete from customerjobdetails where customerjobid = jobid; 
+            SET SQL_SAFE_UPDATES = 1;
+            
+           Update customerjob set estimateendtime = _estimatedtime, estimateamount=estimatedamount,cheifcomplaint = _cheifcomplaint  where customerjobid = jobid;
+            set _customerjobid = jobid;
+         else
+			set _customerjobid = (SELECT UUID());
+          
+            insert into customerjob (customerjobid,customerid, vehicleid,status,estimateendtime,estimateamount,actualcompletetime,actualamount,createdate,ssid,createdUser,cheifcomplaint) 
+            values (_customerjobid,_Customerid,_vehicleid,'UNATTENDED',_estimatedtime,estimatedamount,null,0,now(),_ssid,_userid,_cheifcomplaint);
+            
+            
+         
+         end if;
+         select 'success',_Customerid,_vehicleid,_customerjobid;
+         
+         
+    else
+		select 'failure not authenticated' as status;
+        
+    end if;
+END$$
+
+DELIMITER ;
+
+
+
+//ERROR While  clicking estimaates 
+
+USE `clubauto_cloud2.1`;
+DROP procedure IF EXISTS `getJobCardDetails`;
+
+DELIMITER $$
+USE `clubauto_cloud2.1`$$
+CREATE DEFINER=`root`@`localhost` PROCEDURE `getJobCardDetails`(_userid varchar(45), _ssid varchar(45), jobid varchar(45) )
+BEGIN
+Declare count int;
+    set count = (SELECT COUNT(*) FROM servicestationUsers where userid=_userid and servicestationid = _ssid);
+    if(count > 0)     then 
+		select 'SUCCESS' AS Status;	
+		SELECT spares,estimates,discount FROM customerjob where 
+        customerjobid=jobid and ssid =_ssid;
+	else
+		Select 'FAILURE' AS Status;
+         
+    end if;
+END$$
+
+DELIMITER ;
+
+

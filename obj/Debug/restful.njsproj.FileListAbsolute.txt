@@ -1,0 +1,2 @@
+D:\Working Folder\AutoCare\ServiceProject\restful\restful\obj\Debug\restful.njsprojResolveAssemblyReference.cache
+D:\Working Folder\AutoCare\ServiceProject\restful\restful\bin\Microsoft.NodejsTools.WebRole.dll
